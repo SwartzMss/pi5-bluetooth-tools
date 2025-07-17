@@ -73,71 +73,43 @@ mpg123 -a bluealsa:HCI=hci0,DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp ~/Music/song.mp3
 
 ### 2. Python 脚本播放
 
-创建 `play_via_bluealsa.py`：
+仓库已经内置 `main.py` 可直接播放 WAV 文件：
+
+```bash
+python3 main.py /home/pi/Music/song.wav bluealsa:HCI=hci0,DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp
+```
+
+如需在其他脚本中复用，导入 `bluealsa_player.py` 的 `play_wav_via_bluealsa`：
 
 ```python
-#!/usr/bin/env python3
-import wave
-import alsaaudio
-
-# 配置项
-WAV_FILE = '/home/pi/Music/song.wav'
-BT_DEVICE = 'bluealsa:HCI=hci0,DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp'
-
-# 打开 WAV 文件
-wf = wave.open(WAV_FILE, 'rb')
-
-# 打开 BlueALSA PCM 设备
-pcm = alsaaudio.PCM(type=alsaaudio.PCM_PLAYBACK, card=BT_DEVICE)
-
-# 配置通道数、采样率和格式
-pcm.setchannels(wf.getnchannels())
-pcm.setrate(wf.getframerate())
-fmt = alsaaudio.PCM_FORMAT_S16_LE if wf.getsampwidth() == 2 else alsaaudio.PCM_FORMAT_S8
-pcm.setformat(fmt)
-pcm.setperiodsize(1024)
-
-# 读取并推送音频数据
-data = wf.readframes(1024)
-while data:
-    pcm.write(data)
-    data = wf.readframes(1024)
-
-wf.close()
+from bluealsa_player import play_wav_via_bluealsa
+play_wav_via_bluealsa('/home/pi/Music/song.wav', 'bluealsa:HCI=hci0,DEV=XX:XX:XX:XX:XX:XX,PROFILE=a2dp')
 ```
-
-赋予执行权限并运行：
-```bash
-chmod +x play_via_bluealsa.py
-./play_via_bluealsa.py
-```
-
-将脚本中的 `BT_DEVICE` 替换成你的音箱 MAC 地址后即可播放。
-
-## 配置技巧
-
-- 可在 `~/.asoundrc` 中设置 BlueALSA 为默认 PCM 设备：
-  ```text
-  pcm.!default {
-    type plug
-    slave.pcm {
-      type bluealsa
-      device "XX:XX:XX:XX:XX:XX"
-      profile "a2dp"
-      interface "hci0"
-    }
-  }
-  ctl.!default {
-    type bluealsa
-  }
-  ```
-- 设置 `dmix` 插件可实现简单的多路输出，但更复杂的场景建议使用 PulseAudio/​PipeWire。
 
 ## 故障排除
 
 - **无声音**：确认设备已连接（`bluetoothctl info XX:...`）。
 - **权限错误**：将当前用户加入 `audio` 组（`sudo usermod -aG audio $USER`），然后重新登录。
 - **延迟高或掉帧**：可尝试减小 `period size`，或切换到 PulseAudio/​PipeWire 获取更好缓冲管理。
+
+## 配置技巧
+
+可在 `~/.asoundrc` 中设置 BlueALSA 为默认 PCM 设备，配置后在命令或脚本中无需再显式指定 MAC 和 A2DP 协议：
+
+```text
+pcm.!default {
+  type plug
+  slave.pcm {
+    type bluealsa
+    device "XX:XX:XX:XX:XX:XX"
+    profile "a2dp"
+    interface "hci0"
+  }
+}
+ctl.!default {
+  type bluealsa
+}
+```
 
 ## 许可证
 
